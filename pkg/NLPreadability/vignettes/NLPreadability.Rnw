@@ -1,0 +1,187 @@
+\documentclass[nojss]{jss}
+%% \usepackage{Sweave}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amsfonts,enumerate}
+
+
+\author{}
+\Plainauthor{}
+\title{\pkg{NLPreadability}: An R Package for Generating Readability Features}
+\Keywords{readability, NLP, R}
+\Abstract{This vignette shows how to use the \pkg{NLPreadability} package.}
+
+<<echo=false, results=hide>>=
+if (dir.exists("/home/f/lib/R_3.5.2")) .libPaths("/home/f/lib/R_3.5.2")
+
+options(width=78, prompt = "R> ", continue = "+  ", useFancyQuotes = FALSE)
+@ 
+
+\begin{document}
+\sloppy
+\SweaveOpts{eps=false, keep.source=true, width=8, height=4}
+\setkeys{Gin}{width=\textwidth}
+%\VignetteIndexEntry{NLPreadability: An R Package for Generating Readability Features}
+%\VignettePackage{NLPreadability}
+
+
+\maketitle
+
+\section{Data}
+<<>>=
+library("NLP")
+library("tm")
+@
+To showcase the usage of this package we will use 
+the \pkg{OneStopEnglish} corpus \citep{corpus:OneStopEnglish} and 
+the \pkg{English Textbook} corpus \citep{readability:Islam:2015}.
+
+\subsection{Installation}
+Both corpora are available and can be installed from \url{https://datacube.wu.ac.at/}.
+<<eval=FALSE>>=
+dcube <- "https://datacube.wu.ac.at/"
+install.packages("tm.corpus.enTextbook", repos = dcube, type = "source")
+install.packages("tm.corpus.OneStopEnglish", repos = dcube, type = "source")
+@
+
+Both packages contain the corpus and the derived annotations and features.
+More information can be found in the corresponding \code{README} files.
+
+
+\section{Building the annotations}
+To build the annotations we use the \pkg{Stanford CoreNLP} 
+\citep{nlp:StanfordCoreNlp:Manning:2014}
+natural language software. \pkg{Stanford CoreNLP} is a \proglang{Java}
+software which can be accessed from within \proglang{R} through 
+the packages \pkg{StanfordCoreNLP}~\citep{pkg:StanfordCoreNLP} and 
+\pkg{NLPclient}~\citep{pkg:NLPclient}.
+
+\subsection{Installation}
+
+\subsubsection{StanfordCoreNLP}
+Package \pkg{Stanford CoreNLP} is available from the \url{https://datacube.wu.ac.at/} repository. The main package can be installed with 
+<<eval=FALSE>>=
+install.packages("StanfordCoreNLP", repos = dcube, type = "source")
+@
+Additionally, pre-trained models for different languages can be installed.
+<<>>=
+pkgs <- available.packages(repos="https://datacube.wu.ac.at")
+grep("StanfordCoreNLP", rownames(pkgs), value = TRUE)
+@
+In order to install the English language models, one should use: 
+<<eval=FALSE>>=
+install.packages("StanfordCoreNLPjars", repos = dcube, type = "source")
+@
+
+\subsubsection{NLPclient}
+Package \pkg{NLPclient} is available from CRAN.
+<<eval=FALSE>>=
+install.packages("NLPclient")
+@
+
+More information about the installation of \pkg{NLPclient} can be found in
+the package 
+\href{https://CRAN.R-project.org/package=NLPclient/readme/README.html}{README}.
+
+
+\subsection{Annotation}
+To use the \pkg{NLPreadability} package the following annotators should be used:
+<<>>=
+annotators <- c("tokenize", "ssplit", "pos", "lemma", "ner", 
+  "regexner", "truecase", "parse", "dcoref", "relation")
+@
+In the following we show the creation of the annotations for the \pkg{OneStopEnglish} corpus.
+Since \pkg{Stanford CoreNLP} needs considerable amounts of memory assigned to the virtual 
+machine, we first increase the amount of memory \pkg{Java} is allowed to use.
+<<>>=
+# If you have more memory use more, my laptop has only 8GB.
+options(java.parameters = "-Xmx6g", stringsAsFactors = FALSE )
+@
+We then load the \pkg{OneStopEnglish} corpus. The object \code{ose_corpus} contains a list of three corpora, one for each readability level.
+<<>>=
+library("StanfordCoreNLP")
+library("tm.corpus.OneStopEnglish")
+data("ose_corpus")
+
+ose_corpus
+@
+The following command accesses the first text among the ones classified as advanced:
+<<>>=
+txt <- content(ose_corpus$advanced)[1]
+@
+
+In order to build the annotations the following code can be used:
+<<>>=
+p <- StanfordCoreNLP_Pipeline(annotators, control = list(nthreads = 1L))
+annotate <- function(x) AnnotatedPlainTextDocument(x, p(x))
+@
+
+<<eval=FALSE>>=
+anno <- vector("list", sum(lengths(ose_corpus)))
+k <- 1L
+for (readability_level in names(ose_corpus)) {
+  corp <- ose_corpus[[readability_level]]
+  texts <- content(corp)
+  for (i in seq_along(texts)) {
+    names(anno)[k] <- sprintf("%s_%03i", substr(readability_level, 1, 3), i)
+    anno[[k]] <- annotate(texts[i])
+    k <- k + 1L
+  }
+}
+@
+
+Since building the annotations is time consuming, pre-computed annotations
+can be loaded from the \pkg{tm.corpus.OneStopEnglish} 
+(and the \pkg{tm.corpus.enTextbook} respectively) package.
+
+<<>>=
+data("ose_annotations")
+@
+The annotations for the first text in the advanced corpus can be accessed by:
+<<>>=
+ose_annotations["adv_001"]
+@
+
+The names of the annotations consist of the first three letters of the readability level
+(``elementary'', ``intermediate'' and ``advanced'') and the document id.
+
+<<>>=
+readability_level <- gsub("_.*", "", names(ose_annotations))
+table(readability_level)
+id <- as.integer(gsub(".*_", "", names(ose_annotations)))
+@
+
+
+\section{Building the features}
+
+The \pkg{NLPreadability} package simplifies the creation of 
+features for readability prediction.
+
+<<eval=FALSE>>=
+library(NLPreadability)
+
+features <- lapply(ose_annotations, readability_features)
+features <- do.call(rbind, features)
+readability_level <- gsub("_.*", "", rownames(features))
+y <- ordered(readability_level, levels = c("ele", "int", "adv"))
+features <- cbind(readability = y, as.data.frame(as.matrix(features)))
+@
+
+For the \pkg{OneStopEnglish} corpus and the \pkg{English Textbook} corpus
+pre-computed features can be loaded from the corresponding packages.
+
+<<>>=
+library("tm.corpus.OneStopEnglish")
+data("ose_features")
+dim(ose_features)
+@
+
+<<>>=
+library("tm.corpus.enTextbook")
+data("entb_features")
+dim(entb_features)
+@
+
+
+\bibliography{NLPreadability}
+
+\end{document}

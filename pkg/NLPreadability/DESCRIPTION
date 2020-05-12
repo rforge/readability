@@ -1,0 +1,11 @@
+Package: NLPreadability
+Type: Package
+Title: Generate Readability Features
+Authors@R: person("Florian", "Schwendinger", role = c("aut", "cre"),
+                  email = "FlorianSchwendinger@gmx.at")
+Version: 1.1
+Description: This package provides functions to generate readability features 
+	based on annotations generated with 'Stanford' 'CoreNLP'.
+Imports: sylcount
+Depends: NLP, slam, tm
+License: GPL-2
