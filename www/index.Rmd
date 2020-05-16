@@ -12,7 +12,7 @@ the package [vignette](vignettes/NLPreadability.pdf).
 The companioning data packages **`tm.corpus.enTextbook`** and **`tm.corpus.OneStopEnglish`**
 are stored on the [datacube](https://datacube.wu.ac.at/) (since they exceed the package size 
 limitation of **CRAN**).
-Information about the data in the companioning data packages can be found inthe package 
+Information about the data in the companioning data packages can be found in the package 
 README files 
 ([**OneStopEnglish README**](vignettes/ose_README.html) and 
 [**enTextbook README**](vignettes/entb_README.html)).
